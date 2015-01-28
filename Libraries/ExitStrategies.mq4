@@ -11,8 +11,8 @@
 
 #include <stderror.mqh>
 #include <stdlib.mqh>
+#include <ToolBox.mqh>
 
-#import "ToolBox.ex4"
 
 //--- input parameters
 // common

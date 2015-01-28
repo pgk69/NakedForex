@@ -10,16 +10,16 @@
 
 #include <WinUser32.mqh>
 #include <NakedForexTools.mqh>
+// #include <ExitStrategies.mqh>
+#include <ToolBox.mqh>
 
 #import "user32.dll"
   int GetForegroundWindow();
 #import
 
+input string ZoneFilename = ""; // Zone information filename
 
-#import "NakedForexCatalyst.ex4"
-  double NakedForexCatalystKangarooTail(int timeframe = 0, int shift = 1, double PctMaximumBodySize = 0.2);
-
-#import
+int ReferenceChartID = 0;
 
 // http://forum.mql4.com/35112
 void PauseTest(){
@@ -46,10 +46,13 @@ double PipSize;
 double Zones[];
 
 
-
 // manage any trades opened by this EA
 // TODO: this function is unfinished
 void ManageTrades() {
+
+
+  return; // TODO ************************************* 
+  
   for (int ii = 0; ii < OrdersTotal(); ii++) {
     if (OrderSelect(ii, SELECT_BY_POS) == false)
       continue;
@@ -58,18 +61,6 @@ void ManageTrades() {
       continue;
     // we have found an order that was opened by this EA
     
-    if (OrderMagicNumber() && NFX_SIGNAL_KANGAROOTAIL) {
-      if ((OrderType() == OP_BUYSTOP)
-          || (OrderType() == OP_SELLSTOP)) {
-        if (LastSignalAge > 0) {
-           if (DebugLevel >= 1) Print("Delete outdated order ", OrderTicket());
-
-           if (! OrderDelete(OrderTicket())) {
-             Alert("Could not delete order ", OrderTicket());
-           }
-         }
-      }
-    }
     // for now all NFX orders are managed by the three bar exit
     if (LastSignalAge < 4)
       continue;
@@ -77,9 +68,9 @@ void ManageTrades() {
     double LastSL = OrderStopLoss();
     
     if (OrderType() == OP_BUY) {
-      double SL = RoundNormalizedOnTickValue(iLow(NULL, 0, 0));
+      double SL = NormRound(iLow(NULL, 0, 0));
       for (int jj = 1; jj <= 3; jj++) {
-        SL = fmin(SL, RoundNormalizedOnTickValue(iLow(NULL, 0, jj)));
+        SL = fmin(SL, NormRound(iLow(NULL, 0, jj)));
       }
       if (SL > LastSL) {
         int rc = OrderModify(OrderTicket(), OrderOpenPrice(), SL, OrderTakeProfit(), OrderExpiration(), clrNONE);
@@ -88,9 +79,9 @@ void ManageTrades() {
       }
     }
     if (OrderType() == OP_SELL) {
-      double SL = RoundNormalizedOnTickValue(iHigh(NULL, 0, 0));
+      double SL = NormRound(iHigh(NULL, 0, 0));
       for (int jj = 1; jj <= 3; jj++) {
-        SL = fmax(SL, RoundNormalizedOnTickValue(iHigh(NULL, 0, jj)));
+        SL = fmax(SL, NormRound(iHigh(NULL, 0, jj)));
       }
       if (SL < LastSL) {
         int rc = OrderModify(OrderTicket(), OrderOpenPrice(), SL, OrderTakeProfit(), OrderExpiration(), clrNONE);
@@ -121,18 +112,16 @@ int OnInit()
    // EURUSD: 0.00001
    // DAX: 0.01
    Print("Symbol point value: ", SymbolInfoDouble(Symbol(), SYMBOL_POINT));
-
-   // get all zones drawn in the chart by the user
-   GetZonesFromChartObjects(0, Zones);
    
-   //FIXME: strategy tester does not support OnChartEvent, so we need to preallocate the array with some test values
-   Alert("NOTE: debugging code in EA, remove following lines!");
-   ArrayResize(Zones, 3);
-   Zones[0] = 1.25155;
-   Zones[1] = 1.25275;
-   Zones[2] = 1.25510;
-   //END OF FIXME
-
+   if (StringCompare(ZoneFilename, "") == 0) {
+     // get all zones drawn in the chart by the user
+     GetZonesFromChartObjects(ReferenceChartID, Zones);
+   } else {
+     if (ReadZonesFromFile(ZoneFilename, Zones) != ERR_NO_ERROR) {
+       Alert("ERROR: could not read zone information from file ", ZoneFilename);
+       return(INIT_FAILED);
+     }
+   }
 
    if(DebugLevel >= 1) Print("Zone summary");
    for (int ii=0; ii < ArraySize(Zones); ii++) {
@@ -194,27 +183,40 @@ void OnTick()
      
    if (DebugLevel >= 3) Print("Z0: price ", iHigh(Symbol(), timeframe, 1), "/", iLow(Symbol(), timeframe, 1), " prints on zone: ", Zones[ZoneTouched]);
 
-   if (true) {
+   if (false) {
      // show zone action on the chart
      datetime xcoord[2];
+     string name = "Zone";
      CopyTime(Symbol(), timeframe, 1, 2, xcoord);
-     ObjectCreate(ChartID(), "Zone", OBJ_ELLIPSE, 0, xcoord[0], iLow(Symbol(), timeframe, 1), xcoord[1], iHigh(Symbol(), timeframe, 1));
+     ObjectCreate(ChartID(), name, OBJ_ELLIPSE, 0, xcoord[0], iLow(Symbol(), timeframe, 1), xcoord[1], iHigh(Symbol(), timeframe, 1));
      ChartRedraw();      
    }
    
    // catalyst checks
    double isKangarooTail = NakedForexCatalystKangarooTail(timeframe);
 
+   // keep the stop order open for the duration of the current bar
+   datetime Expiry = TimeCurrent() + timeframe * 60;
+
    if (isKangarooTail > 0.01) {
-      if (DebugLevel >= 1) Print("Bullish signal: ", isKangarooTail);
+      if (DebugLevel >= 1) Print("Bullish signal: ", isKangarooTail, " on zone #", ZoneTouched);
       
-      double SL   = RoundNormalizedOnTickValue(iLow(Symbol(), timeframe, 1) - SLPips * PipSize);
-      double Stop = RoundNormalizedOnTickValue(fmax(Ask, iHigh(Symbol(), timeframe, 1)) + StopPips * PipSize);
-      double TP   = RoundNormalizedOnTickValue(Stop + TPPips * PipSize);
+      // find next zone
+      double SL   = NormRound(iLow(Symbol(), timeframe, 1) - SLPips * PipSize);
+      double Stop = NormRound(fmax(Ask, iHigh(Symbol(), timeframe, 1)) + StopPips * PipSize);
+      double TP = Stop;
+
+      int NextZone = ZoneTouched + 1;
+      if (NextZone < ArraySize(Zones)) {
+        TP = Zones[NextZone];
+      } else {
+        Alert("No next zone defined, using a default TP of", TPPips, " Pips");
+        TP   = NormRound(Stop + TPPips * PipSize);
+      }
       
       // page 146: entering the trade: Stop Buy a few pips above high of tail
       Print("OrderSend StopBuy (Ask/Bid/KangarooMax/KangarooMin - Stop/SL/TP) ", Ask, "/", Bid, "/", iHigh(Symbol(), timeframe, 1), "/", iLow(Symbol(), timeframe, 1), " - ", Stop, "/", SL, "/", TP);
-      rc = OrderSend(Symbol(), OP_BUYSTOP, OrderSize, Stop, Slippage, SL, TP, "Kangaroo Tail", NFX_SIGNAL_KANGAROOTAIL, 0, clrNONE);
+      rc = OrderSend(Symbol(), OP_BUYSTOP, OrderSize, Stop, Slippage, SL, TP, "Kangaroo Tail", NFX_SIGNAL_KANGAROOTAIL, Expiry, clrNONE);
       if(rc < 0) {
         Print("Failed with error #", GetLastError());
         //BreakPoint();
@@ -225,13 +227,21 @@ void OnTick()
       PauseTest();
    }
    if (isKangarooTail < -0.01) {
-      if (DebugLevel >= 1) Print("Bearish signal: ", isKangarooTail);
+      if (DebugLevel >= 1) Print("Bearish signal: ", isKangarooTail, " on zone #", ZoneTouched);
 
-      double SL   = RoundNormalizedOnTickValue(iHigh(Symbol(), timeframe, 1) + SLPips * PipSize);
-      double Stop = RoundNormalizedOnTickValue(fmin(Bid, iLow(Symbol(), timeframe, 1)) - StopPips * PipSize);
-      double TP   = RoundNormalizedOnTickValue(Stop - TPPips * PipSize);
+      double SL   = NormRound(iHigh(Symbol(), timeframe, 1) + SLPips * PipSize);
+      double Stop = NormRound(fmin(Bid, iLow(Symbol(), timeframe, 1)) - StopPips * PipSize);
+      double TP   = Stop;
 
-      rc = OrderSend(Symbol(), OP_SELL, OrderSize, Stop, Slippage, SL, TP, "Kangaroo Tail", NFX_SIGNAL_KANGAROOTAIL, 0, clrNONE);
+      int NextZone = ZoneTouched - 1;
+      if (NextZone >= 0) {
+        TP = Zones[NextZone];
+      } else {
+        Alert("No next zone defined, using a default TP of", TPPips, " Pips");
+        TP   = NormRound(Stop - TPPips * PipSize);
+      }
+
+      rc = OrderSend(Symbol(), OP_SELL, OrderSize, Stop, Slippage, SL, TP, "Kangaroo Tail", NFX_SIGNAL_KANGAROOTAIL, Expiry, clrNONE);
       Print("OrderSend StopSell (Ask/Bid/KangarooMax/KangarooMin - Stop/SL/TP) ", Ask, "/", Bid, "/", iHigh(Symbol(), timeframe, 1), "/", iLow(Symbol(), timeframe, 1), " - ", Stop, "/", SL, "/", TP);
       if(rc < 0) {
         Print("Failed with error #", GetLastError());
@@ -286,8 +296,13 @@ void OnChartEvent(const int id,
         break;
    }
 
+   if (StringCompare(ZoneFilename, "") != 0) {
+     // zones specified in file, ignore chart
+     return;
+   }     
+
    if (DebugLevel >= 1) Print("Processing chart event, reinitializing zones");
-   GetZonesFromChartObjects(0, Zones);
+   GetZonesFromChartObjects(ReferenceChartID, Zones);
 
    if (DebugLevel >= 3) Print("Zone summary");
    for(int ii=0; ii < ArraySize(Zones); ii++) {

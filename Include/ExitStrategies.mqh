@@ -27,7 +27,7 @@
 #define __ExitStrategies_H__
 
 #import "ExitStrategies.ex4"
-  void ExitStrategies_Init
+  void ExitStrategies_Init;
   double initial_TP();
   double initial_SL();
   double trailing_TP();

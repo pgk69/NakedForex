@@ -77,6 +77,7 @@ double calcPips(double Boundary, double Percent, double Pips) export {
 //+------------------------------------------------------------------+
 //| ggf. Normalize and Round                                         |
 //+------------------------------------------------------------------+
+// rounds the argument to the nearest tick value
 double NormRound(double Value) export {
   int    OrderDigits        = SymbolInfoInteger(OrderSymbol(), SYMBOL_DIGITS);
   double OrderTradeTickSize = SymbolInfoDouble(OrderSymbol(), SYMBOL_TRADE_TICK_SIZE);
