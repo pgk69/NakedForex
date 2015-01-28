@@ -33,6 +33,10 @@
   double RoundNormalizedOnTickValue(double Value);
 
   void   GetZonesFromChartObjects(long ChartID, double &arg[]);
+
+  int    WriteZonesToFile(string Filename, double &arg[]);
+  int    ReadZonesFromFile(string Filename, double &arg[], bool MergeArray = false);
+
   int    PriceActionOnZone(double &arg[], double price1, double price2, double slack = 0);
 #import
 
