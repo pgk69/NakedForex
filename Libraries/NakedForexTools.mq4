@@ -19,6 +19,8 @@
 
 extern int DebugLevel;
 
+const string Magic = "NFZT 1.0";
+
 // Inspect objects on chart. Determine price levels for all horizontal lines 
 // and all fibonacci retracements in the chart. Store all levels in the dynamic
 // array passed as second argument.
@@ -72,6 +74,64 @@ void GetZonesFromChartObjects(long ChartID, double &arg[]) export {
      ArraySort(arg, WHOLE_ARRAY, 0, MODE_ASCEND);
      
    if(DebugLevel >= 3) Print("Number of zones found: ", ZoneCount);
+}
+
+
+// write zone array contents to CSV file
+int WriteZonesToFile(string Filename, double &arg[]) export {
+    int fh = FileOpen(Filename, FILE_WRITE | FILE_CSV);
+    if (fh == INVALID_HANDLE) {
+      return GetLastError();
+    }
+    FileWrite(fh, Magic, "Zones", Symbol(), EnumToString(ENUM_TIMEFRAMES(_Period)), TimeCurrent());
+    for (int ii = 0; ii < ArraySize(arg); ii++) {
+      FileWrite(fh, arg[ii]);
+    }
+    FileClose(fh);
+    return ERR_NO_ERROR;
+}
+
+int ReadZonesFromFile(string Filename, double &arg[], bool MergeArray = false) export {
+    int fh = FileOpen(Filename, FILE_READ | FILE_CSV);
+    if (fh == INVALID_HANDLE) {
+      return GetLastError();
+    }
+
+    string fmagic = FileReadString(fh);
+    if (StringCompare(fmagic, Magic) != 0) {
+        if (DebugLevel >= 0) Print("File magic mismatch: ", fmagic, " (expected: ", Magic, ")");
+        return ERR_USER_ERROR_FIRST;
+    }
+    string ftype = FileReadString(fh);
+    if (StringCompare(ftype, "Zones") != 0) {
+        if (DebugLevel >= 0) Print("File type mismatch: ", ftype, " (expected: Zones)");
+        return ERR_USER_ERROR_FIRST;
+    }
+    
+    string fsymbol = FileReadString(fh);
+    if (DebugLevel >= 0) Print("Symbol: ", fsymbol);
+
+    string ftimeframe = FileReadString(fh);
+    if (DebugLevel >= 0) Print("Timeframe: ", ftimeframe);
+
+    string ftime = FileReadString(fh);
+    if (DebugLevel >= 0) Print("Created: ", ftime);
+    
+    int ii = 0;
+    if (MergeArray)
+      ii = ArraySize(arg);
+
+    while(!FileIsEnding(fh)) {
+      string tmp = FileReadString(fh);
+      double price = StringToDouble(tmp);
+      ArrayResize(arg, ii + 1, 100);
+      arg[ii++] = price;
+    }
+    
+    if (ArraySize(arg) > 0)
+     ArraySort(arg, WHOLE_ARRAY, 0, MODE_ASCEND);
+
+    return ERR_NO_ERROR;
 }
 
 // "look to the left"
