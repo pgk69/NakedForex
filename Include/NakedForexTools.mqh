@@ -45,13 +45,13 @@
   int    PriceActionOnZone(double &arg[], double price1, double price2, double slack = 0);
     
   // Catalysts
-  double NakedForexCatalystLastKiss(int timeframe = 0);
-  double NakedForexCatalystBigShadow(int timeframe = 0);
-  double NakedForexCatalystWammie(int timeframe = 0);
-  double NakedForexCatalystMoolah(int timeframe = 0);
-  double NakedForexCatalystKangarooTail(int timeframe = 0, int shift = 1, double PctMaximumBodySize = 0.2);
-  double NakedForexCatalystBigBelt(int timeframe = 0);
-  double NakedForexCatalystTrendyKangaroo(int timeframe = 0);
+  double NakedForexCatalystLastKiss(int timeframe = 0, int shift = 1);
+  double NakedForexCatalystBigShadow(int timeframe = 0, int shift = 1);
+  double NakedForexCatalystWammie(int timeframe = 0, int shift = 1);
+  double NakedForexCatalystMoolah(int timeframe = 0, int shift = 1);
+  double NakedForexCatalystKangarooTail(int timeframe = 0, int shift = 1);
+  double NakedForexCatalystBigBelt(int timeframe = 0, int shift = 1);
+  double NakedForexCatalystTrendyKangaroo(int timeframe = 0, int shift = 1);
   
 #import
 
