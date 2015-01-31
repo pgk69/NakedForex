@@ -28,14 +28,7 @@ void PauseTest(){
         PostMessageA(main, WM_COMMAND, 0x57a, 0);  }   // 1402. Pause
 }
 
-
-#define NFX_TRADE                    0x00000000
-
-#define NFX_SIGNAL_MASK              0x11100000
-#define NFX_SIGNAL_KANGAROOTAIL      0x00100000
-#define NFX_SIGNAL_TRENDINGKANGAROO  0x01000000
-
-extern int DebugLevel = 3;
+int DebugLevel = 3;
 
 // age of last order placement
 int LastSignalAge = 1;
@@ -57,7 +50,7 @@ void ManageTrades() {
     if (OrderSelect(ii, SELECT_BY_POS) == false)
       continue;
 
-    if (! (OrderMagicNumber() & NFX_SIGNAL_MASK))
+    if (! (OrderMagicNumber() & NFX_TRADE_MAGIC))
       continue;
     // we have found an order that was opened by this EA
     
@@ -104,6 +97,8 @@ int OnInit()
    // we want events for graphical object modification (create, modify, delete), so we must tell MT4 to inform us:
    ChartSetInteger(0, CHART_EVENT_OBJECT_CREATE, true);
    ChartSetInteger(0, CHART_EVENT_OBJECT_DELETE, true);
+   
+   NakedForexSetDebugLevel(DebugLevel);
 
    PipSize = (1 / SymbolInfoDouble(Symbol(), SYMBOL_TRADE_CONTRACT_SIZE));
    Print("PipSize: ", PipSize);
@@ -193,13 +188,17 @@ void OnTick()
    }
    
    // catalyst checks
-   double isKangarooTail = NakedForexCatalystKangarooTail(timeframe);
+   int NFXSignal = 0;
+   double isNFXCatalyst = NakedForexCatalyst(NFXSignal, timeframe, 1);
+   
+   if (NFXSignal == 0)
+      return;
 
    // keep the stop order open for the duration of the current bar
    datetime Expiry = TimeCurrent() + timeframe * 60;
 
-   if (isKangarooTail > 0.01) {
-      if (DebugLevel >= 1) Print("Bullish signal: ", isKangarooTail, " on zone #", ZoneTouched);
+   if (isNFXCatalyst > 0.01) {
+      if (DebugLevel >= 1) Print("Bullish signal: ", isNFXCatalyst, " on zone #", ZoneTouched);
       
       // find next zone
       double SL   = NormRound(iLow(Symbol(), timeframe, 1) - SLPips * PipSize);
@@ -216,7 +215,7 @@ void OnTick()
       
       // page 146: entering the trade: Stop Buy a few pips above high of tail
       Print("OrderSend StopBuy (Ask/Bid/KangarooMax/KangarooMin - Stop/SL/TP) ", Ask, "/", Bid, "/", iHigh(Symbol(), timeframe, 1), "/", iLow(Symbol(), timeframe, 1), " - ", Stop, "/", SL, "/", TP);
-      rc = OrderSend(Symbol(), OP_BUYSTOP, OrderSize, Stop, Slippage, SL, TP, "Kangaroo Tail", NFX_SIGNAL_KANGAROOTAIL, Expiry, clrNONE);
+      rc = OrderSend(Symbol(), OP_BUYSTOP, OrderSize, Stop, Slippage, SL, TP, "Kangaroo Tail", NFXSignal, Expiry, clrNONE);
       if(rc < 0) {
         Print("Failed with error #", GetLastError());
         //BreakPoint();
@@ -226,8 +225,8 @@ void OnTick()
       // pause on new trade
       PauseTest();
    }
-   if (isKangarooTail < -0.01) {
-      if (DebugLevel >= 1) Print("Bearish signal: ", isKangarooTail, " on zone #", ZoneTouched);
+   if (isNFXCatalyst < -0.01) {
+      if (DebugLevel >= 1) Print("Bearish signal: ", isNFXCatalyst, " on zone #", ZoneTouched);
 
       double SL   = NormRound(iHigh(Symbol(), timeframe, 1) + SLPips * PipSize);
       double Stop = NormRound(fmin(Bid, iLow(Symbol(), timeframe, 1)) - StopPips * PipSize);
@@ -241,7 +240,7 @@ void OnTick()
         TP   = NormRound(Stop - TPPips * PipSize);
       }
 
-      rc = OrderSend(Symbol(), OP_SELL, OrderSize, Stop, Slippage, SL, TP, "Kangaroo Tail", NFX_SIGNAL_KANGAROOTAIL, Expiry, clrNONE);
+      rc = OrderSend(Symbol(), OP_SELL, OrderSize, Stop, Slippage, SL, TP, "Kangaroo Tail", NFXSignal, Expiry, clrNONE);
       Print("OrderSend StopSell (Ask/Bid/KangarooMax/KangarooMin - Stop/SL/TP) ", Ask, "/", Bid, "/", iHigh(Symbol(), timeframe, 1), "/", iLow(Symbol(), timeframe, 1), " - ", Stop, "/", SL, "/", TP);
       if(rc < 0) {
         Print("Failed with error #", GetLastError());

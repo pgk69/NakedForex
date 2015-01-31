@@ -17,12 +17,45 @@
 //   }
 //+------------------------------------------------------------------+
 
+#include <NakedForexTools.mqh>
+
 int DebugLevel = 0;
 
 const string Magic = "NFZT 1.0";
 
 void NakedForexSetDebugLevel(int arg) export {
    DebugLevel = arg;
+}
+
+
+// returns the bitmask for the specified timeframe
+int PeriodToNFXTimeFrame(int timeframe) export {
+   switch (timeframe) {
+      case PERIOD_M1:
+         return NFX_TIMEFRAME_M1;
+         break;
+      case PERIOD_M5:
+         return NFX_TIMEFRAME_M5;
+         break;
+      case PERIOD_M15:
+         return NFX_TIMEFRAME_M15;
+         break;
+      case PERIOD_M30:
+         return NFX_TIMEFRAME_M30;
+         break;
+      case PERIOD_H1:
+         return NFX_TIMEFRAME_H1;
+         break;
+      case PERIOD_H4:
+         return NFX_TIMEFRAME_H4;
+         break;
+      case PERIOD_D1:
+         return NFX_TIMEFRAME_D1;
+         break;
+      default:
+         return NFX_TIMEFRAME_UNDEF;
+         break;
+   }
 }
 
 // Inspect objects on chart. Determine price levels for all horizontal lines 
@@ -224,6 +257,82 @@ int PriceActionOnZone(double &arg[], double price1, double price2, double slack 
 ///////////////////////////////////////////////////////////
 // Catalysts
 
+// Catch-All function that wraps all individual Catalysts
+double NakedForexCatalyst(int &NFXTradeInfo, int timeframe = 0, int shift = 1, int NFXMask = NFX_SIGNAL_MASK) export {
+   double threshold = 0.1;
+   double rc = 0.0;
+
+   // force current timeframe
+   if (timeframe == 0)
+      timeframe = Period();
+      
+   // preallocate output (will be reset on error later)
+   NFXTradeInfo = NFX_TRADE_MAGIC | PeriodToNFXTimeFrame(timeframe);
+   
+   if ((NFXMask & NFX_SIGNAL_LASTKISS) != 0) {
+      rc = NakedForexCatalystLastKiss(timeframe, shift);
+      if (fabs(rc) > threshold) {
+         NFXTradeInfo |= NFX_SIGNAL_LASTKISS;
+         return rc;
+      }
+   }         
+   if ((NFXMask & NFX_SIGNAL_BIGSHADOW) != 0) {
+      rc = NakedForexCatalystBigShadow(timeframe, shift);
+      if (fabs(rc) > threshold) {
+         NFXTradeInfo |= NFX_SIGNAL_BIGSHADOW;
+         return rc;
+      }
+   }         
+   if ((NFXMask & NFX_SIGNAL_WAMMIE) != 0) {
+      rc = NakedForexCatalystWammie(timeframe, shift);
+      if (fabs(rc) > threshold) {
+         NFXTradeInfo |= NFX_SIGNAL_WAMMIE;
+         return rc;
+      }
+   }         
+   if ((NFXMask & NFX_SIGNAL_MOOLAH) != 0) {
+      rc = NakedForexCatalystMoolah(timeframe, shift);
+      if (fabs(rc) > threshold) {
+         NFXTradeInfo |= NFX_SIGNAL_MOOLAH;
+         return rc;
+      }
+   }
+   if ((NFXMask & NFX_SIGNAL_KANGAROOTAIL) != 0) {
+      rc = NakedForexCatalystKangarooTail(timeframe, shift);
+      if (fabs(rc) > threshold) {
+         NFXTradeInfo |= NFX_SIGNAL_KANGAROOTAIL;
+         return rc;
+      }
+   }
+   if ((NFXMask & NFX_SIGNAL_BIGBELT) != 0) {
+      rc = NakedForexCatalystBigBelt(timeframe, shift);
+      if (fabs(rc) > threshold) {
+         NFXTradeInfo |= NFX_SIGNAL_BIGBELT;
+         return rc;
+      }
+   }
+   if ((NFXMask & NFX_SIGNAL_TRENDINGKANGAROO) != 0) {
+      rc = NakedForexCatalystTrendyKangaroo(timeframe, shift);
+      if (fabs(rc) > threshold) {
+         NFXTradeInfo |= NFX_SIGNAL_TRENDINGKANGAROO;
+         return rc;
+      }
+   }
+   if ((NFXMask & NFX_SIGNAL_BEND) != 0) {
+      rc = NakedForexCatalystBend(timeframe, shift);
+      if (fabs(rc) > threshold) {
+         NFXTradeInfo |= NFX_SIGNAL_BEND;
+         return rc;
+      }
+   }
+   
+   // not matched, reset flag
+   NFXTradeInfo = 0;
+
+   return 0;
+}
+
+
 // Last Kiss trade (page 73)
 double NakedForexCatalystLastKiss(int timeframe = 0, int shift = 1) export {
    return 0.0;
@@ -233,7 +342,6 @@ double NakedForexCatalystLastKiss(int timeframe = 0, int shift = 1) export {
 double NakedForexCatalystBigShadow(int timeframe = 0, int shift = 1) export {
    return 0.0;
 }
-
 
 // Wammies (page 111)
 double NakedForexCatalystWammie(int timeframe = 0, int shift = 1) export {
@@ -260,35 +368,34 @@ double NakedForexCatalystKangarooTail(int timeframe = 0, int shift = 1) export {
    int    numberOfPreviousCandlesticks = 10;
    double PctMaximumBodySize = 0.2; // in percent relative to total range
 
-   double BarOpen  = iOpen(Symbol(), timeframe, shift);
+   double BarOpen  = iOpen(Symbol(),  timeframe, shift);
    double BarClose = iClose(Symbol(), timeframe, shift);
-   double BarHigh  = iHigh(Symbol(), timeframe, shift);
-   double BarLow   = iLow(Symbol(), timeframe, shift);
+   double BarHigh  = iHigh(Symbol(),  timeframe, shift);
+   double BarLow   = iLow(Symbol(),   timeframe, shift);
    double Indicator = 0; // 1: bullish, -1: bearish
 
    if (DebugLevel >= 3) Print("BarOpen/BarClose/BarHigh/BarLow: ", BarOpen, "/", BarClose, "/", BarHigh, "/", BarLow);  
 
    // a kangaroo has a short body compared to the tail
-   double KangarooRange          = CandleStickRange(Symbol(), timeframe, shift);
-   double KangarooBodySize       = CandleStickBodySize(Symbol(), timeframe, shift);
-   double KangarooTopTailSize    = CandleStickTopTailSize(Symbol(), timeframe, shift);
+   double KangarooRange          = CandleStickRange(Symbol(),          timeframe, shift);
+   double KangarooBodySize       = CandleStickBodySize(Symbol(),       timeframe, shift);
+   double KangarooTopTailSize    = CandleStickTopTailSize(Symbol(),    timeframe, shift);
    double KangarooBottomTailSize = CandleStickBottomTailSize(Symbol(), timeframe, shift);
 
    if (DebugLevel >= 3) Print("Kangaroo Range/Body/Top/Bottom sizes: ", KangarooRange, "/", KangarooBodySize, "/", KangarooTopTailSize, "/", KangarooBottomTailSize);  
-   int ii;
 
    // Test if this is a bullish or bearish candidate
    if (KangarooTopTailSize > KangarooBottomTailSize)
       Indicator = -1; // bearish
    else
       Indicator = 1; // bullish
-
   
    // criterium 1: body size compared to tails (page 132)
    if (KangarooRange == 0) {
       if (DebugLevel >= 3) Print("C1: zero size");
          return 0.0;
    }
+
    double RelativeBodySize = KangarooBodySize / KangarooRange;
    if (RelativeBodySize > PctMaximumBodySize) {
       if (DebugLevel >= 3) Print("C1: relative body size");
@@ -296,6 +403,7 @@ double NakedForexCatalystKangarooTail(int timeframe = 0, int shift = 1) export {
    }
 
    // criterium 1b: range must be longer than previous candlesticks (page 134, 150)
+   int ii;
    for (ii = shift + 1; ii < shift + numberOfPreviousCandlesticks; ii++) {
       double PrevCandleStickRange = CandleStickRange(Symbol(), timeframe, ii);
       if (KangarooRange < PrevCandleStickRange) {
@@ -354,3 +462,7 @@ double NakedForexCatalystTrendyKangaroo(int timeframe = 0, int shift = 1) export
    return 0.0;
 }
 
+// Bend (extra chapter)
+double NakedForexCatalystBend(int timeframe = 0, int shift = 1) export {
+   return 0.0;
+}
