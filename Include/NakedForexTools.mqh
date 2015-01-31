@@ -30,6 +30,8 @@
 #define __NakedForexTools_H__
 
 #import "NakedForexTools.ex4"
+  void NakedForexSetDebugLevel(int arg);
+
   // Chart analysis
   int    LookToTheLeft(string symbol, int timeframe, int offset, double price);
   int    LookToTheLeft(string symbol, int timeframe, int offset, double price1, double price2);

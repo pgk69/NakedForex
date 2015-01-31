@@ -17,9 +17,13 @@
 //   }
 //+------------------------------------------------------------------+
 
-extern int DebugLevel = 3;
+int DebugLevel = 0;
 
 const string Magic = "NFZT 1.0";
+
+void NakedForexSetDebugLevel(int arg) export {
+   DebugLevel = arg;
+}
 
 // Inspect objects on chart. Determine price levels for all horizontal lines 
 // and all fibonacci retracements in the chart. Store all levels in the dynamic
