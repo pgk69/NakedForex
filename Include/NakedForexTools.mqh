@@ -33,7 +33,7 @@
   // Chart analysis
   int    LookToTheLeft(string symbol, int timeframe, int offset, double price);
   int    LookToTheLeft(string symbol, int timeframe, int offset, double price1, double price2);
-  double CandleStickTotalSize(string symbol, int timeframe, int offset);
+  double CandleStickRange(string symbol, int timeframe, int offset);
   double CandleStickBodySize(string symbol, int timeframe, int offset);
   double CandleStickTopTailSize(string symbol, int timeframe, int offset);
   double CandleStickBottomTailSize(string symbol, int timeframe, int offset);

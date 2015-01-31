@@ -162,7 +162,7 @@ int LookToTheLeft(string symbol, int timeframe, int offset, double price1, doubl
 }
 
 // return total bar price range
-double CandleStickTotalSize(string symbol, int timeframe, int offset) export {
+double CandleStickRange(string symbol, int timeframe, int offset) export {
   return(iHigh(symbol, timeframe, offset) - iLow(symbol, timeframe, offset));
 }
 
@@ -261,9 +261,8 @@ double NakedForexCatalystMoolah(int timeframe = 0) export {
 // < 9 (0.0 .. -1.0): bearish signal
 double NakedForexCatalystKangarooTail(int timeframe = 0, int shift = 1, double PctMaximumBodySize = 0.2) export {
   // policy settings
-  double minTailSize = 0.67;
-  double minCandlestickSize = 5;
-
+  double minTailSize = 2.0/3.0;  // in percent
+  int    numberOfPreviousCandlesticks = 10;
 
   double PipSize = (1 / SymbolInfoDouble(Symbol(), SYMBOL_TRADE_CONTRACT_SIZE));
 
@@ -273,12 +272,15 @@ double NakedForexCatalystKangarooTail(int timeframe = 0, int shift = 1, double P
   double BarLow   = iLow(Symbol(), timeframe, shift);
   double Indicator = 0; // 1: bullish, -1: bearish
 
+  if (DebugLevel >= 3) Print("BarOpen/BarClose/BarHigh/BarLow: ", BarOpen, "/", BarClose, "/", BarHigh, "/", BarLow);  
+
   // a kangaroo has a short body compared to the tail
-  double KangarooTotalSize      = CandleStickTotalSize(Symbol(), timeframe, shift);
+  double KangarooRange          = CandleStickRange(Symbol(), timeframe, shift);
   double KangarooBodySize       = CandleStickBodySize(Symbol(), timeframe, shift);
   double KangarooTopTailSize    = CandleStickTopTailSize(Symbol(), timeframe, shift);
   double KangarooBottomTailSize = CandleStickBottomTailSize(Symbol(), timeframe, shift);
-  
+
+  if (DebugLevel >= 3) Print("Kangaroo Range/Body/Top/Bottom sizes: ", KangarooRange, "/", KangarooBodySize, "/", KangarooTopTailSize, "/", KangarooBottomTailSize);  
   int ii;
 
   // Test if this is a bullish or bearish candidate
@@ -289,27 +291,21 @@ double NakedForexCatalystKangarooTail(int timeframe = 0, int shift = 1, double P
 
   
   // criterium 1: body size compared to tails (page 132)
-  if (KangarooTotalSize == 0) {
+  if (KangarooRange == 0) {
     if (DebugLevel >= 3) Print("C1: zero size");
     return 0.0;
   }
-  double RelativeBodySize = KangarooBodySize / KangarooTotalSize;
+  double RelativeBodySize = KangarooBodySize / KangarooRange;
   if (RelativeBodySize > PctMaximumBodySize) {
     if (DebugLevel >= 3) Print("C1: relative body size");
     return 0.0;
   }
 
-  // criterium 1a: candlestick absolute minimum pip size
-  if (BarHigh - BarLow < minCandlestickSize * PipSize) {
-    if (DebugLevel >= 3) Print("C1a: absolute body size");
-    return 0.0;
-  }
-
-  // criterium 1b: tailsize must be longer than previous candlesticks (page 134, 150)
-  for (ii = shift + 1; ii < shift + 10; ii++) {
-    double PrevCandleStickSize = iHigh(Symbol(), timeframe, ii) - iLow(Symbol(), timeframe, ii);
-    if (fmax(KangarooTopTailSize, KangarooBottomTailSize) < PrevCandleStickSize) {
-      if (DebugLevel >= 3) Print("C1b: tailsize relative to previous candlesticks");
+  // criterium 1b: range must be longer than previous candlesticks (page 134, 150)
+  for (ii = shift + 1; ii < shift + numberOfPreviousCandlesticks; ii++) {
+    double PrevCandleStickRange = CandleStickRange(Symbol(), timeframe, ii);
+    if (KangarooRange < PrevCandleStickRange) {
+      if (DebugLevel >= 3) Print("C1: tailsize relative to previous candlesticks (", PrevCandleStickRange, ")");
       return 0.0;
     }
   }
@@ -318,9 +314,9 @@ double NakedForexCatalystKangarooTail(int timeframe = 0, int shift = 1, double P
   double QualityBodySize = (1 / PctMaximumBodySize) * (PctMaximumBodySize - RelativeBodySize);
    
   // criterium 2: body is within 1/3 of the candlestick (page 132)
-  double RelativeTailSize = fmax(KangarooTopTailSize, KangarooBottomTailSize) / KangarooTotalSize;
+  double RelativeTailSize = fmax(KangarooTopTailSize, KangarooBottomTailSize) / KangarooRange;
   if (RelativeTailSize < minTailSize) {
-    if (DebugLevel >= 3) Print("C2: body within 1/3 of previous candlestick");
+    if (DebugLevel >= 3) Print("C2: body within a third of the current candlestick");
     return 0.0;
   }
     
