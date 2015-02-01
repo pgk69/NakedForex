@@ -98,7 +98,7 @@ int OnInit()
    ChartSetInteger(0, CHART_EVENT_OBJECT_CREATE, true);
    ChartSetInteger(0, CHART_EVENT_OBJECT_DELETE, true);
    
-   NakedForexSetDebugLevel(DebugLevel);
+   NFXSetDebugLevel(DebugLevel);
 
    PipSize = (1 / SymbolInfoDouble(Symbol(), SYMBOL_TRADE_CONTRACT_SIZE));
    Print("PipSize: ", PipSize);
@@ -228,8 +228,8 @@ void OnTick()
    if (isNFXCatalyst < -0.01) {
       if (DebugLevel >= 1) Print("Bearish signal: ", isNFXCatalyst, " on zone #", ZoneTouched);
 
-      double SL   = NormRound(iHigh(Symbol(), timeframe, 1) + SLPips * PipSize);
-      double Stop = NormRound(fmin(Bid, iLow(Symbol(), timeframe, 1)) - StopPips * PipSize);
+      double SL   = NFXOrderStoploss();
+      double Stop = NFXOrderPrice();
       double TP   = Stop;
 
       int NextZone = ZoneTouched - 1;

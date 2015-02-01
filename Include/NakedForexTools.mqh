@@ -57,7 +57,14 @@
 
 
 #import "NakedForexTools.ex4"
-  void NakedForexSetDebugLevel(int arg);
+  void NFXSetDebugLevel(int arg);
+  
+  // Accessors
+  int      NFXOrderType(int arg = -1);
+  double   NFXOrderPrice(double arg = -1.0);
+  double   NFXOrderStoploss(double arg = -1.0);
+  datetime NFXOrderExpiration(datetime arg = -1);
+
 
   // Chart analysis
   int    LookToTheLeft(string symbol, int timeframe, int offset, double price);

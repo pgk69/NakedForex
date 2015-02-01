@@ -18,12 +18,44 @@
 //+------------------------------------------------------------------+
 
 #include <NakedForexTools.mqh>
+#include <ToolBox.mqh>
 
 int DebugLevel = 0;
-
 const string Magic = "NFZT 1.0";
 
-void NakedForexSetDebugLevel(int arg) export {
+// global variables for trade initiation
+int      SignalOrderType = 0;
+double   SignalOrderPrice = 0.0;
+double   SignalOrderStoploss = 0.0;
+datetime SignalOrderExpiration = 0;
+
+// accessor functions
+int NFXOrderType(int arg = -1) export {
+   if (arg > 0)
+      SignalOrderType = arg;
+   return SignalOrderType;
+}
+
+double NFXOrderPrice(double arg = -1.0) export {
+   if (arg > 0.0)
+      SignalOrderPrice = arg;
+   return SignalOrderPrice;
+}
+
+double NFXOrderStoploss(double arg = -1.0) export {
+   if (arg > 0.0)
+      SignalOrderStoploss = arg;
+   return SignalOrderStoploss;
+}
+
+datetime NFXOrderExpiration(datetime arg = -1) export {
+   if (arg > 0)
+      SignalOrderExpiration = arg;
+   return SignalOrderExpiration;
+}
+
+
+void NFXSetDebugLevel(int arg) export {
    DebugLevel = arg;
 }
 
@@ -340,7 +372,129 @@ double NakedForexCatalystLastKiss(int timeframe = 0, int shift = 1) export {
 
 // Big Shadow trade (page 95)
 double NakedForexCatalystBigShadow(int timeframe = 0, int shift = 1) export {
-   return 0.0;
+   int numberOfPreviousCandlesticks = 10;   // number of candlesticks to consider. Minimum: 3, recommended: 5, optimum: 10
+   double maxPredecessorRatio     = 0.5;   // maximum relative size of previous candlestick in percent of the Big Shadow
+   double maxOtherPredessorsRatio = 0.7;   // maximum relative size of candlesticks before the predecessor in percent of the Big Shadow
+   double PctMinimumBodySize      = 0.6;   // in percent relative to total range
+   double PctMinimumCloseDistance = 0.85;  // in percent relative to total range
+   double minQualityRoomToTheLeft   = 0.7;
+   double PctStopBeyondSignal       = 0.02;  // percentage below/above Big Shadow for stop price calculation (based on AveragPreviousRange)
+
+
+   double AveragePreviousRange         = 0.0;   // will hold the average range of the previous n candlesticks (for stop buy/sell and stop loss computation)
+   double Indicator = 0; // 1: bullish, -1: bearish
+
+   // Big Shadow has the largest range of the n previous candlesticks (page 95 f)
+   // The defining characteristics of the big-shadow candlestick are as follows: 
+   // The big- shadow candlestick is much larger than the previous candlestick, 
+   // the big-shadow candlestick has a wide range, and the big-shadow candlestick 
+   // is the largest candlestick the market has seen for some time.
+   double BigShadowRange            = CandleStickRange(Symbol(), timeframe, shift);
+   double BigShadowBodySize         = CandleStickBodySize(Symbol(), timeframe, shift);
+   double BigShadowClose            = iClose(Symbol(), timeframe, shift);
+   double BigShadowPredecessorRange = CandleStickRange(Symbol(), timeframe, shift + 1);
+   double BigShadowPredecessorBodySize = CandleStickBodySize(Symbol(), timeframe, shift + 1);
+
+   // MB: body size should be not too small (not explained, but obvious from charts)
+   if (BigShadowRange == 0.0) {
+       if (DebugLevel >= 3) Print("C0a: Big Shadow range is zero");
+         return 0.0;   
+   }
+   if (BigShadowPredecessorRange == 0.0) {
+       if (DebugLevel >= 3) Print("C0b: Big Shadow predecessor body range is zero");
+         return 0.0;   
+   }
+   if (BigShadowBodySize / BigShadowRange < PctMinimumBodySize) {
+       if (DebugLevel >= 3) Print("C0c: Big Shadow body size should be considerable");
+         return 0.0;   
+   }
+   if (BigShadowPredecessorBodySize / BigShadowPredecessorRange < PctMinimumBodySize) {
+       if (DebugLevel >= 3) Print("C0d: Big Shadow predecessor body size should be considerable");
+         return 0.0;   
+   }
+
+   // page 109: The big-shadow candlestick has a higher high and a lower low than the previous candlestick.
+   if (! (iHigh(Symbol(), timeframe, shift) > iHigh(Symbol(), timeframe, shift + 1))) {
+       if (DebugLevel >= 3) Print("C1: Big Shadow has higher high than the previous candlestick");
+         return 0.0;
+   }
+
+   if (! (iLow(Symbol(), timeframe, shift) < iLow(Symbol(), timeframe, shift + 1))) {
+       if (DebugLevel >= 3) Print("C1: Big Shadow has lower low than the previous candlestick");
+         return 0.0;
+   }
+
+   if (BigShadowPredecessorRange / BigShadowRange > maxPredecessorRatio) {
+      if (DebugLevel >= 3) Print("C2: Big Shadow is much larger than previous candlestick");
+      return 0.0;   
+   }
+
+   AveragePreviousRange = BigShadowRange + BigShadowPredecessorRange;
+
+   int ii;
+   for (ii = shift + 2; ii < shift + numberOfPreviousCandlesticks + 1; ii++) {
+      AveragePreviousRange += CandleStickRange(Symbol(), timeframe, ii);
+      if (CandleStickRange(Symbol(), timeframe, ii) / BigShadowRange > maxOtherPredessorsRatio) {
+         if (DebugLevel >= 3) Print("C3: range larger than previous candlesticks");
+         return 0.0;
+
+      }
+   }
+   AveragePreviousRange /= numberOfPreviousCandlesticks;
+   
+   if (iOpen(Symbol(), timeframe, shift) == iClose(Symbol(), timeframe, shift)) {
+       if (DebugLevel >= 3) Print("C4: zero body size");
+         return 0.0;
+   }
+
+   double QualityCloseDistance = 0.0;
+
+   // Test if this is a bullish or bearish candidate
+   if (iOpen(Symbol(), timeframe, shift) > iClose(Symbol(), timeframe, shift)) {
+      Indicator = -1; // bearish
+      QualityCloseDistance = 1 - ((BigShadowClose - iLow(Symbol(), timeframe, shift) - BigShadowClose) / BigShadowRange);
+   } else {
+      Indicator = 1; // bullish
+      QualityCloseDistance = 1 - ((iHigh(Symbol(), timeframe, shift) - BigShadowClose) / BigShadowRange);
+   }
+   
+   // Closing price close to high/low
+   // The ideal closing price for a bullish big shadow candlestick is the high. 
+   // The big-shadow candlestick has a very good chance of success if the candlestick 
+   // closes on the high. Obviously, it is rare for the closing price of a bullish 
+   // big-shadow candlestick to be equal to the high. The closer the closing price is 
+   // to the high for the bullish big-shadow candlestick, the better the trade signal.
+   if (QualityCloseDistance < PctMinimumCloseDistance) {
+      if (DebugLevel >= 3) Print("C5: Close distance to High/Low too low");
+         return 0.0;
+   }
+
+   // room to the left (page 103)
+   double BigShadowMiddle = BigShadowRange / 2 + iLow(Symbol(), timeframe, shift);
+   
+   int RoomToLeft = LookToTheLeft(Symbol(), timeframe, shift + 3, BigShadowMiddle, BigShadowClose);
+   double QualityRoomToLeft = 1.0 - (1 / (RoomToLeft + 1));
+
+   if (QualityRoomToLeft < minQualityRoomToTheLeft) {
+      if (DebugLevel >= 3) Print("C6: room to left (", RoomToLeft, " bars)");
+      return 0.0;
+   }
+  
+   // advise the trade to caller
+   if (Indicator > 0) {
+      NFXOrderType(OP_BUYSTOP);
+      NFXOrderPrice(NormRound(iHigh(Symbol(), timeframe, shift) + AveragePreviousRange * PctStopBeyondSignal)); // buy just above high
+      NFXOrderStoploss(NormRound(iLow(Symbol(), timeframe, shift) - AveragePreviousRange * PctStopBeyondSignal));
+      NFXOrderExpiration(TimeCurrent() + timeframe * 60);
+   }
+   if (Indicator < 0) {
+      NFXOrderType(OP_SELLSTOP);
+      NFXOrderPrice(NormRound(iLow(Symbol(), timeframe, shift) - AveragePreviousRange * PctStopBeyondSignal)); // sell just below low
+      NFXOrderStoploss(NormRound(iHigh(Symbol(), timeframe, shift) + AveragePreviousRange * PctStopBeyondSignal));
+      NFXOrderExpiration(TimeCurrent() + timeframe * 60);
+   }
+
+   return Indicator * fabs(QualityCloseDistance * QualityRoomToLeft);;
 }
 
 // Wammies (page 111)
@@ -364,10 +518,14 @@ double NakedForexCatalystMoolah(int timeframe = 0, int shift = 1) export {
 // < 9 (0.0 .. -1.0): bearish signal
 double NakedForexCatalystKangarooTail(int timeframe = 0, int shift = 1) export {
    // policy settings
-   double minTailSize = 2.0/3.0;  // in percent
+   double minTailSize                  = 2.0/3.0;  // in percent
    int    numberOfPreviousCandlesticks = 10;
-   double PctMaximumBodySize = 0.2; // in percent relative to total range
+   double PctMaximumBodySize           = 0.2; // in percent relative to total range
+   double minQualityRoomToTheLeft      = 0.7;
+   double PctStopBeyondSignal          = 0.02;  // percentage below/above signal for stop price calculation (based on AveragPreviousRange)
 
+
+   double AveragePreviousRange         = 0.0;   // will hold the average range of the previous n candlesticks (for stop buy/sell and stop loss computation)
    double BarOpen  = iOpen(Symbol(),  timeframe, shift);
    double BarClose = iClose(Symbol(), timeframe, shift);
    double BarHigh  = iHigh(Symbol(),  timeframe, shift);
@@ -393,24 +551,28 @@ double NakedForexCatalystKangarooTail(int timeframe = 0, int shift = 1) export {
    // criterium 1: body size compared to tails (page 132)
    if (KangarooRange == 0) {
       if (DebugLevel >= 3) Print("C1: zero size");
-         return 0.0;
+      return 0.0;
    }
 
    double RelativeBodySize = KangarooBodySize / KangarooRange;
    if (RelativeBodySize > PctMaximumBodySize) {
       if (DebugLevel >= 3) Print("C1: relative body size");
-         return 0.0;
+      return 0.0;
    }
 
    // criterium 1b: range must be longer than previous candlesticks (page 134, 150)
    int ii;
+   AveragePreviousRange = KangarooRange;
    for (ii = shift + 1; ii < shift + numberOfPreviousCandlesticks; ii++) {
       double PrevCandleStickRange = CandleStickRange(Symbol(), timeframe, ii);
+      AveragePreviousRange += PrevCandleStickRange;
       if (KangarooRange < PrevCandleStickRange) {
          if (DebugLevel >= 3) Print("C1: tailsize relative to previous candlesticks (", PrevCandleStickRange, ")");
-            return 0.0;
+         return 0.0;
       }
    }
+   
+   AveragePreviousRange /= numberOfPreviousCandlesticks;
     
    // weighted criterium, the smaller the body the better. 0 < QualityBodySize <= 1
    double QualityBodySize = (1 / PctMaximumBodySize) * (PctMaximumBodySize - RelativeBodySize);
@@ -419,14 +581,14 @@ double NakedForexCatalystKangarooTail(int timeframe = 0, int shift = 1) export {
    double RelativeTailSize = fmax(KangarooTopTailSize, KangarooBottomTailSize) / KangarooRange;
    if (RelativeTailSize < minTailSize) {
       if (DebugLevel >= 3) Print("C2: body within a third of the current candlestick");
-         return 0.0;
+      return 0.0;
    }
     
    // criterium 3: open and close of Kangaroo Tail should be within previous candle (page 139 ff)
    if (! (iLow(Symbol(), timeframe, shift + 1) < fmin(BarOpen, BarClose))
           && (fmax(BarOpen, BarClose) < iHigh(Symbol(), timeframe, shift + 1))) {
       if (DebugLevel >= 3) Print("C3: open/close within previous candle");
-         return 0.0;
+      return 0.0;
    }
     
    // TODO quality measure: depth of enclosure (distance of the body to the high/low of the previous candle stick)
@@ -437,15 +599,31 @@ double NakedForexCatalystKangarooTail(int timeframe = 0, int shift = 1) export {
    int RoomToLeft = LookToTheLeft(Symbol(), timeframe, shift + 2, fmin(BarOpen, BarClose), fmax(BarOpen, BarClose));
    double QualityRoomToLeft = 1.0 - (1 / (RoomToLeft + 1));
 
-   if (QualityRoomToLeft < 0.7) {
+   if (QualityRoomToLeft < minQualityRoomToTheLeft) {
       if (DebugLevel >= 3) Print("C4: room to left (", RoomToLeft, " bars)");
-         return 0.0;
+      return 0.0;
    }
   
    double QualityTailSize = RelativeTailSize;  // note: do not rescale this value, it is already in the range of 0.67 .. 1.0
   
    if (DebugLevel >= 1) Print("Kangaroo ", Indicator, " High/Low: ", BarHigh, "/", BarLow, " Open/Close: ", BarOpen, "/", BarClose, 
     " Body/TailTop/TailBottom: ", KangarooBodySize, "/", KangarooTopTailSize, "/", KangarooBottomTailSize, " QualityBody/QualityTail: ", QualityBodySize, "/", QualityTailSize);
+
+
+   // advise the trade to caller
+   if (Indicator > 0) {
+      NFXOrderType(OP_BUYSTOP);
+      NFXOrderPrice(NormRound(iHigh(Symbol(), timeframe, shift) + AveragePreviousRange * PctStopBeyondSignal)); // buy just above high
+      NFXOrderStoploss(NormRound(iLow(Symbol(), timeframe, shift) - AveragePreviousRange * PctStopBeyondSignal));
+      NFXOrderExpiration(TimeCurrent() + timeframe * 60);
+   }
+   if (Indicator < 0) {
+      NFXOrderType(OP_SELLSTOP);
+      NFXOrderPrice(NormRound(iLow(Symbol(), timeframe, shift) - AveragePreviousRange * PctStopBeyondSignal)); // sell just below low
+      NFXOrderStoploss(NormRound(iHigh(Symbol(), timeframe, shift) + AveragePreviousRange * PctStopBeyondSignal));
+      NFXOrderExpiration(TimeCurrent() + timeframe * 60);
+   }
+
 
    return Indicator * fabs(QualityBodySize * QualityEnclosure * QualityRoomToLeft * QualityTailSize);
 }
