@@ -67,8 +67,8 @@
   datetime NFXOrderTimestamp(datetime arg = -1);
 
   // Chart analysis
-  int    LookToTheLeft(string symbol, int timeframe, int offset, double price);
-  int    LookToTheLeft(string symbol, int timeframe, int offset, double price1, double price2);
+  int    LookToTheLeft(string symbol, int timeframe, int offset, int AboveOrBelow, double price);
+  int    LookToTheLeft(string symbol, int timeframe, int offset, int AboveOrBelow, double price1, double price2);
   double CandleStickRange(string symbol, int timeframe, int offset);
   double CandleStickBodySize(string symbol, int timeframe, int offset);
   double CandleStickTopTailSize(string symbol, int timeframe, int offset);
