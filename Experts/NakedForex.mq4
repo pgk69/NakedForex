@@ -9,9 +9,9 @@
 #property strict
 
 #include <WinUser32.mqh>
-#include <NakedForexTools.mqh>
-// #include <ExitStrategies.mqh>
 #include <ToolBox.mqh>
+#include <NakedForexTools.mqh>
+#include <ExitStrategies.mqh>
 
 #import "user32.dll"
   int GetForegroundWindow();

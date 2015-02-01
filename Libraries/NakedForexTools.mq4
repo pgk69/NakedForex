@@ -28,6 +28,7 @@ int      SignalOrderType = 0;
 double   SignalOrderPrice = 0.0;
 double   SignalOrderStoploss = 0.0;
 datetime SignalOrderExpiration = 0;
+datetime SignalOrderTimestamp = 0;
 
 // accessor functions
 int NFXOrderType(int arg = -1) export {
@@ -54,6 +55,11 @@ datetime NFXOrderExpiration(datetime arg = -1) export {
    return SignalOrderExpiration;
 }
 
+datetime NFXOrderTimestamp(datetime arg = -1) export {
+   if (arg > 0)
+      SignalOrderTimestamp = arg;
+   return SignalOrderTimestamp;
+}
 
 void NFXSetDebugLevel(int arg) export {
    DebugLevel = arg;
@@ -230,6 +236,7 @@ int LookToTheLeft(string symbol, int timeframe, int offset, double price1, doubl
    return ii - offset;
 }
 
+
 // return total bar price range
 double CandleStickRange(string symbol, int timeframe, int offset) export {
    return(iHigh(symbol, timeframe, offset) - iLow(symbol, timeframe, offset));
@@ -368,6 +375,7 @@ double NakedForexCatalyst(int &NFXTradeInfo, int timeframe = 0, int shift = 1, i
 // Last Kiss trade (page 73)
 double NakedForexCatalystLastKiss(int timeframe = 0, int shift = 1) export {
    return 0.0;
+   if (DebugLevel >= 2) Print("NFX Catalyst Test: Last Kiss");
 }
 
 // Big Shadow trade (page 95)
@@ -395,6 +403,7 @@ double NakedForexCatalystBigShadow(int timeframe = 0, int shift = 1) export {
    double BigShadowPredecessorRange = CandleStickRange(Symbol(), timeframe, shift + 1);
    double BigShadowPredecessorBodySize = CandleStickBodySize(Symbol(), timeframe, shift + 1);
 
+   if (DebugLevel >= 2) Print("NFX Catalyst Test: Big Shadow");
    // MB: body size should be not too small (not explained, but obvious from charts)
    if (BigShadowRange == 0.0) {
        if (DebugLevel >= 3) Print("C0a: Big Shadow range is zero");
@@ -485,14 +494,14 @@ double NakedForexCatalystBigShadow(int timeframe = 0, int shift = 1) export {
       NFXOrderType(OP_BUYSTOP);
       NFXOrderPrice(NormRound(iHigh(Symbol(), timeframe, shift) + AveragePreviousRange * PctStopBeyondSignal)); // buy just above high
       NFXOrderStoploss(NormRound(iLow(Symbol(), timeframe, shift) - AveragePreviousRange * PctStopBeyondSignal));
-      NFXOrderExpiration(TimeCurrent() + timeframe * 60);
    }
    if (Indicator < 0) {
       NFXOrderType(OP_SELLSTOP);
       NFXOrderPrice(NormRound(iLow(Symbol(), timeframe, shift) - AveragePreviousRange * PctStopBeyondSignal)); // sell just below low
       NFXOrderStoploss(NormRound(iHigh(Symbol(), timeframe, shift) + AveragePreviousRange * PctStopBeyondSignal));
-      NFXOrderExpiration(TimeCurrent() + timeframe * 60);
    }
+   NFXOrderTimestamp(TimeCurrent());
+   NFXOrderExpiration(TimeCurrent() + timeframe * 60);
 
    return Indicator * fabs(QualityCloseDistance * QualityRoomToLeft);;
 }
@@ -500,11 +509,13 @@ double NakedForexCatalystBigShadow(int timeframe = 0, int shift = 1) export {
 // Wammies (page 111)
 double NakedForexCatalystWammie(int timeframe = 0, int shift = 1) export {
    return 0.0;
+   if (DebugLevel >= 2) Print("NFX Catalyst Test: Wammie");
 }
 
 // Moolah (page 111)
 double NakedForexCatalystMoolah(int timeframe = 0, int shift = 1) export {
    return 0.0;
+   if (DebugLevel >= 2) Print("NFX Catalyst Test: Moolah");
 }
 
 
@@ -532,6 +543,7 @@ double NakedForexCatalystKangarooTail(int timeframe = 0, int shift = 1) export {
    double BarLow   = iLow(Symbol(),   timeframe, shift);
    double Indicator = 0; // 1: bullish, -1: bearish
 
+   if (DebugLevel >= 2) Print("NFX Catalyst Test: Kangaroo Tail");
    if (DebugLevel >= 3) Print("BarOpen/BarClose/BarHigh/BarLow: ", BarOpen, "/", BarClose, "/", BarHigh, "/", BarLow);  
 
    // a kangaroo has a short body compared to the tail
@@ -615,32 +627,34 @@ double NakedForexCatalystKangarooTail(int timeframe = 0, int shift = 1) export {
       NFXOrderType(OP_BUYSTOP);
       NFXOrderPrice(NormRound(iHigh(Symbol(), timeframe, shift) + AveragePreviousRange * PctStopBeyondSignal)); // buy just above high
       NFXOrderStoploss(NormRound(iLow(Symbol(), timeframe, shift) - AveragePreviousRange * PctStopBeyondSignal));
-      NFXOrderExpiration(TimeCurrent() + timeframe * 60);
    }
    if (Indicator < 0) {
       NFXOrderType(OP_SELLSTOP);
       NFXOrderPrice(NormRound(iLow(Symbol(), timeframe, shift) - AveragePreviousRange * PctStopBeyondSignal)); // sell just below low
       NFXOrderStoploss(NormRound(iHigh(Symbol(), timeframe, shift) + AveragePreviousRange * PctStopBeyondSignal));
-      NFXOrderExpiration(TimeCurrent() + timeframe * 60);
    }
+   NFXOrderTimestamp(TimeCurrent());
+   NFXOrderExpiration(TimeCurrent() + timeframe * 60);
+
 
 
    return Indicator * fabs(QualityBodySize * QualityEnclosure * QualityRoomToLeft * QualityTailSize);
 }
 
-
-
 // Big Belt (page 151)
 double NakedForexCatalystBigBelt(int timeframe = 0, int shift = 1) export {
    return 0.0;
+   if (DebugLevel >= 2) Print("NFX Catalyst Test: Big Belt");
 }
 
 // Trendy Kangaroo (page 163)
 double NakedForexCatalystTrendyKangaroo(int timeframe = 0, int shift = 1) export {
    return 0.0;
+   if (DebugLevel >= 2) Print("NFX Catalyst Test: Trendy Kangaroo");
 }
 
 // Bend (extra chapter)
 double NakedForexCatalystBend(int timeframe = 0, int shift = 1) export {
    return 0.0;
+   if (DebugLevel >= 2) Print("NFX Catalyst Test: Bend");
 }

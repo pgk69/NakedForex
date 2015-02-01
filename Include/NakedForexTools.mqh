@@ -64,7 +64,7 @@
   double   NFXOrderPrice(double arg = -1.0);
   double   NFXOrderStoploss(double arg = -1.0);
   datetime NFXOrderExpiration(datetime arg = -1);
-
+  datetime NFXOrderTimestamp(datetime arg = -1);
 
   // Chart analysis
   int    LookToTheLeft(string symbol, int timeframe, int offset, double price);
