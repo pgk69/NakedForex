@@ -96,6 +96,8 @@ int PeriodToNFXTimeFrame(int timeframe) export {
    }
 }
 
+
+
 // Inspect objects on chart. Determine price levels for all horizontal lines 
 // and all fibonacci retracements in the chart. Store all levels in the dynamic
 // array passed as second argument.
@@ -431,30 +433,30 @@ double NakedForexCatalystBigShadow(int timeframe = 0, int shift = 1) export {
    // MB: body size should be not too small (not explained, but obvious from charts)
    if (BigShadowRange == 0.0) {
        if (DebugLevel >= 3) Print("C0a: Big Shadow range is zero");
-         return 0.0;   
+       return 0.0;   
    }
    if (BigShadowPredecessorRange == 0.0) {
        if (DebugLevel >= 3) Print("C0b: Big Shadow predecessor body range is zero");
-         return 0.0;   
+       return 0.0;   
    }
    if (BigShadowBodySize / BigShadowRange < PctMinimumBodySize) {
        if (DebugLevel >= 3) Print("C0c: Big Shadow body size should be considerable");
-         return 0.0;   
+       return 0.0;   
    }
    if (BigShadowPredecessorBodySize / BigShadowPredecessorRange < PctMinimumBodySize) {
        if (DebugLevel >= 3) Print("C0d: Big Shadow predecessor body size should be considerable");
-         return 0.0;   
+       return 0.0;   
    }
 
    // page 109: The big-shadow candlestick has a higher high and a lower low than the previous candlestick.
    if (! (iHigh(Symbol(), timeframe, shift) > iHigh(Symbol(), timeframe, shift + 1))) {
        if (DebugLevel >= 3) Print("C1: Big Shadow has higher high than the previous candlestick");
-         return 0.0;
+       return 0.0;
    }
 
    if (! (iLow(Symbol(), timeframe, shift) < iLow(Symbol(), timeframe, shift + 1))) {
        if (DebugLevel >= 3) Print("C1: Big Shadow has lower low than the previous candlestick");
-         return 0.0;
+       return 0.0;
    }
 
    if (BigShadowPredecessorRange / BigShadowRange > maxPredecessorRatio) {
@@ -470,14 +472,13 @@ double NakedForexCatalystBigShadow(int timeframe = 0, int shift = 1) export {
       if (CandleStickRange(Symbol(), timeframe, ii) / BigShadowRange > maxOtherPredessorsRatio) {
          if (DebugLevel >= 3) Print("C3: range larger than previous candlesticks");
          return 0.0;
-
       }
    }
    AveragePreviousRange /= numberOfPreviousCandlesticks;
    
    if (iOpen(Symbol(), timeframe, shift) == iClose(Symbol(), timeframe, shift)) {
        if (DebugLevel >= 3) Print("C4: zero body size");
-         return 0.0;
+       return 0.0;
    }
 
    double QualityCloseDistance = 0.0;
@@ -499,7 +500,7 @@ double NakedForexCatalystBigShadow(int timeframe = 0, int shift = 1) export {
    // to the high for the bullish big-shadow candlestick, the better the trade signal.
    if (QualityCloseDistance < PctMinimumCloseDistance) {
       if (DebugLevel >= 3) Print("C5: Close distance to High/Low too low");
-         return 0.0;
+      return 0.0;
    }
 
    // room to the left (page 103)

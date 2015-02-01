@@ -17,9 +17,22 @@
   int GetForegroundWindow();
 #import
 
-input string ZoneFilename = ""; // Zone information filename
 
-int ReferenceChartID = 0;
+input string ZoneFilename = ""; // Zone information filename
+input int    ReferenceChartID = 0; // Reference Chart ID for Zones
+
+input int    LowestTimeFrame  = PERIOD_M1; // Lowest Period to monitor
+input int    HighestTimeFrame = PERIOD_H4; // Highest Period to monitor
+
+input double MaxRelativeTradeSize = 0.01;  // Max. percentage of Equity at risk per trade
+input double MaxAbsoluteRisk = 100.0;      // Max. absolute equity at risk per trade
+input int    MaxConcurrentOpenTrades = 1;     // Max. number of concurrent open trades
+input int    DebugLevel = 0;
+
+
+// globals
+int MinTimeFrameIndex = 0;
+int MaxTimeFrameIndex = 0;
 
 // http://forum.mql4.com/35112
 void PauseTest(){
@@ -28,24 +41,14 @@ void PauseTest(){
         PostMessageA(main, WM_COMMAND, 0x57a, 0);  }   // 1402. Pause
 }
 
-int DebugLevel = 3;
-
-// age of last order placement
-int LastSignalAge = 1;
-
-double PipSize;
-
 // Global storage for zones on this chart
 double Zones[];
 
+datetime LastBarTime[8];
+
 
 // manage any trades opened by this EA
-// TODO: this function is unfinished
 void ManageTrades() {
-
-
-  return; // TODO ************************************* 
-  
   for (int ii = 0; ii < OrdersTotal(); ii++) {
     if (OrderSelect(ii, SELECT_BY_POS) == false)
       continue;
@@ -54,35 +57,11 @@ void ManageTrades() {
       continue;
     // we have found an order that was opened by this EA
     
-    // for now all NFX orders are managed by the three bar exit
-    if (LastSignalAge < 4)
+    if ((OrderType() != OP_BUY) && (OrderType() != OP_SELL))
       continue;
-
-    double LastSL = OrderStopLoss();
+ 
     
-    if (OrderType() == OP_BUY) {
-      double SL = NormRound(iLow(NULL, 0, 0));
-      for (int jj = 1; jj <= 3; jj++) {
-        SL = fmin(SL, NormRound(iLow(NULL, 0, jj)));
-      }
-      if (SL > LastSL) {
-        int rc = OrderModify(OrderTicket(), OrderOpenPrice(), SL, OrderTakeProfit(), OrderExpiration(), clrNONE);
-        if (DebugLevel >= 1) Print("Modify order ", OrderTicket(), " new SL: ", SL);
-        PauseTest();
-      }
-    }
-    if (OrderType() == OP_SELL) {
-      double SL = NormRound(iHigh(NULL, 0, 0));
-      for (int jj = 1; jj <= 3; jj++) {
-        SL = fmax(SL, NormRound(iHigh(NULL, 0, jj)));
-      }
-      if (SL < LastSL) {
-        int rc = OrderModify(OrderTicket(), OrderOpenPrice(), SL, OrderTakeProfit(), OrderExpiration(), clrNONE);
-        if (DebugLevel >= 1) Print("Modify order ", OrderTicket(), " new SL: ", SL);
-        PauseTest();
-      }
-    }
-  }
+   }    
 }
 
 
@@ -99,9 +78,6 @@ int OnInit()
    ChartSetInteger(0, CHART_EVENT_OBJECT_DELETE, true);
    
    NFXSetDebugLevel(DebugLevel);
-
-   PipSize = (1 / SymbolInfoDouble(Symbol(), SYMBOL_TRADE_CONTRACT_SIZE));
-   Print("PipSize: ", PipSize);
    
    // NOTE: SymbolPoint is the minimum price indication of the symbol
    // EURUSD: 0.00001
@@ -123,6 +99,25 @@ int OnInit()
       if (DebugLevel >= 3) Print("Zone ", ii, " price: ", Zones[ii]);
    }
 
+   MinTimeFrameIndex = PeriodToIndex(LowestTimeFrame);
+   MaxTimeFrameIndex = PeriodToIndex(HighestTimeFrame);
+   
+   if (MinTimeFrameIndex < PeriodToIndex(PERIOD_M1)) {
+      Alert("Invalid minimum period specified");
+      return(INIT_FAILED);
+   }
+   if (MinTimeFrameIndex > MaxTimeFrameIndex) {
+      Alert("Minimum Period is longer than maximum period");
+      return(INIT_FAILED);
+   }
+   if (MaxTimeFrameIndex > PeriodToIndex(PERIOD_D1)) {
+      Alert("Maximum Period is longer than 1 D");
+      return(INIT_FAILED);   
+   }
+   
+   for (int ii = 0; ii < 8; ii++)
+      LastBarTime[ii] = 0;
+
 //---
    return(INIT_SUCCEEDED);
   }
@@ -137,121 +132,82 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 //| Expert tick function                                             |
 //+------------------------------------------------------------------+
-void OnTick()
-  {
-//---
-   static datetime LastBarTime = 0;
-
-   int timeframe = 0;
-   int rc;
-   datetime ThisBarTime = iTime(NULL, timeframe, 0);
-   
-   double TPPips = 1000;
-   double SLPips = 4;
-   double StopPips = 2;
-   double OrderSize = 0.1;
-   double Slippage = 0;
-
+void OnTick() {   
    ManageTrades();
    
-   // only action on new candle, ignore ticks in between
-   if( LastBarTime == ThisBarTime)
-      return;
-   
-   // save start time of this candle   
-   LastBarTime = ThisBarTime;
-   
-   // keep track of last signal age
-   LastSignalAge++;
-
-   // enable this to pause on each new candlebar. press the "Pause" key to continue.
-   //PauseTest();
-   
-   // zone checks
-   // NOTE: slack is 0.0 for now, the previous bar must print exactly on the zone line!
-   // TODO: determine sensible value for slack that works for DAX (e. g. 2.0) and Forex (0.00002) as well
-   int ZoneTouched = PriceActionOnZone(Zones, iHigh(Symbol(), timeframe, 1), iLow(Symbol(), timeframe, 1), 0.0);
-
-   if (ZoneTouched == -1)
-     // price is not on a zone
-     return;
+   for (int timeframe = MinTimeFrameIndex; timeframe <= MaxTimeFrameIndex; timeframe++) {
+      datetime ThisBarTime = iTime(Symbol(), timeframe, 0);
+      if (LastBarTime[timeframe] == ThisBarTime)
+         continue;
+      LastBarTime[timeframe] = ThisBarTime;
+      if (DebugLevel >= 3) Print("New candlestick on timeframe ", timeframe);
+      
+      // New bar on timeframe started
+      
+      // zone checks
+      // NOTE: slack is 0.0 for now, the previous bar must print exactly on the zone line!
+      // TODO: determine sensible value for slack that works for DAX (e. g. 2.0) and Forex (0.00002) as well
+      int ZoneTouched = PriceActionOnZone(Zones, iHigh(Symbol(), timeframe, 1), iLow(Symbol(), timeframe, 1), 0.0);
+#ifdef FIXME
+      if (ZoneTouched == -1)
+         // price is not on a zone
+         continue;
+#endif
      
-   if (DebugLevel >= 3) Print("Z0: price ", iHigh(Symbol(), timeframe, 1), "/", iLow(Symbol(), timeframe, 1), " prints on zone: ", Zones[ZoneTouched]);
+      if (DebugLevel >= 3) Print("Timeframe: ", timeframe, "; price ", iHigh(Symbol(), timeframe, 1), "/", iLow(Symbol(), timeframe, 1), " prints on zone: ", Zones[ZoneTouched]);
 
-   if (false) {
-     // show zone action on the chart
-     datetime xcoord[2];
-     string name = "Zone";
-     CopyTime(Symbol(), timeframe, 1, 2, xcoord);
-     ObjectCreate(ChartID(), name, OBJ_ELLIPSE, 0, xcoord[0], iLow(Symbol(), timeframe, 1), xcoord[1], iHigh(Symbol(), timeframe, 1));
-     ChartRedraw();      
-   }
-   
-   // catalyst checks
-   int NFXSignal = 0;
-   double isNFXCatalyst = NakedForexCatalyst(NFXSignal, timeframe, 1);
-   
-   if (NFXSignal == 0)
-      return;
+      // catalyst checks
+      int NFXSignal = 0;
+      double QualityNFXCatalyst = NakedForexCatalyst(NFXSignal, timeframe, 1);
 
-   // keep the stop order open for the duration of the current bar
-   datetime Expiry = TimeCurrent() + timeframe * 60;
+      if (NFXSignal == 0)
+         continue;
 
-   if (isNFXCatalyst > 0.01) {
-      if (DebugLevel >= 1) Print("Bullish signal: ", isNFXCatalyst, " on zone #", ZoneTouched);
+      if (fabs(QualityNFXCatalyst) < 0.01)
+         continue;
+
+      // determine trade parameters      
+      double TradeTakeProfit = 0.0;
+      int    TradeOperation = NFXOrderType();
+      double TradeStop      = NFXOrderPrice();
+      double TradeStopLoss  = NFXOrderStoploss();
+      datetime TradeExpiry    = NFXOrderExpiration();
+      double TradeVolume    = 0.1;
       
-      // find next zone
-      double SL   = NormRound(iLow(Symbol(), timeframe, 1) - SLPips * PipSize);
-      double Stop = NormRound(fmax(Ask, iHigh(Symbol(), timeframe, 1)) + StopPips * PipSize);
-      double TP = Stop;
-
-      int NextZone = ZoneTouched + 1;
-      if (NextZone < ArraySize(Zones)) {
-        TP = Zones[NextZone];
-      } else {
-        Alert("No next zone defined, using a default TP of", TPPips, " Pips");
-        TP   = NormRound(Stop + TPPips * PipSize);
-      }
       
-      // page 146: entering the trade: Stop Buy a few pips above high of tail
-      Print("OrderSend StopBuy (Ask/Bid/KangarooMax/KangarooMin - Stop/SL/TP) ", Ask, "/", Bid, "/", iHigh(Symbol(), timeframe, 1), "/", iLow(Symbol(), timeframe, 1), " - ", Stop, "/", SL, "/", TP);
-      rc = OrderSend(Symbol(), OP_BUYSTOP, OrderSize, Stop, Slippage, SL, TP, "Kangaroo Tail", NFXSignal, Expiry, clrNONE);
-      if(rc < 0) {
-        Print("Failed with error #", GetLastError());
-        //BreakPoint();
-      }
-      // make sure the trade monitor cleans up if trade is not triggered
-      LastSignalAge = 0;
-      // pause on new trade
-      PauseTest();
-   }
-   if (isNFXCatalyst < -0.01) {
-      if (DebugLevel >= 1) Print("Bearish signal: ", isNFXCatalyst, " on zone #", ZoneTouched);
+      if (QualityNFXCatalyst > 0) {
+         if (DebugLevel >= 1) Print("Timeframe: ", timeframe, "; bullish signal: ", QualityNFXCatalyst, " on zone #", ZoneTouched);
 
-      double SL   = NFXOrderStoploss();
-      double Stop = NFXOrderPrice();
-      double TP   = Stop;
+         int NextZone = ZoneTouched + 1;
+         if (NextZone < ArraySize(Zones)) {
+            TradeTakeProfit = NormRound(Zones[NextZone]);
+         } else {
+            Alert("No next zone defined, using a default TP of 2 * SL");
+            TradeTakeProfit = NormRound(TradeStop + 2 * (TradeStop - TradeStopLoss));
+         }
 
-      int NextZone = ZoneTouched - 1;
-      if (NextZone >= 0) {
-        TP = Zones[NextZone];
       } else {
-        Alert("No next zone defined, using a default TP of", TPPips, " Pips");
-        TP   = NormRound(Stop - TPPips * PipSize);
+         if (DebugLevel >= 1) Print("Timeframe: ", timeframe, "; bearish signal: ", QualityNFXCatalyst, " on zone #", ZoneTouched);
+
+         int NextZone = ZoneTouched - 1;
+         if (NextZone >= 0) {
+            TradeTakeProfit = NormRound(Zones[NextZone]);
+         } else {
+            Alert("No next zone defined, using a default TP of 2 * SL");
+            TradeTakeProfit = NormRound(TradeStop - 2 * (TradeStopLoss - TradeStop));
+         }
       }
 
-      rc = OrderSend(Symbol(), OP_SELL, OrderSize, Stop, Slippage, SL, TP, "Kangaroo Tail", NFXSignal, Expiry, clrNONE);
-      Print("OrderSend StopSell (Ask/Bid/KangarooMax/KangarooMin - Stop/SL/TP) ", Ask, "/", Bid, "/", iHigh(Symbol(), timeframe, 1), "/", iLow(Symbol(), timeframe, 1), " - ", Stop, "/", SL, "/", TP);
-      if(rc < 0) {
-        Print("Failed with error #", GetLastError());
-        //BreakPoint();
+      // enable this to pause on each new candlebar. press the "Pause" key to continue.
+      //PauseTest();
+            
+      if (IsTradeAllowed()) {
+         OrderSend(Symbol(), TradeOperation, TradeVolume, TradeStop, 0, TradeStopLoss, TradeTakeProfit, "Naked Forex", NFXSignal, TradeExpiry, clrAquamarine);      
+      } else {
+         Print("Simulated trade: ", TradeOperation, ", @", TradeStop, " SL: ", TradeStopLoss);
       }
-      // make sure the trade monitor cleans up if trade is not triggered
-      LastSignalAge = 0;
-      // pause on new trade
-      PauseTest();
    }
-  }
+}
 //+------------------------------------------------------------------+
 //| Tester function                                                  |
 //+------------------------------------------------------------------+
