@@ -94,7 +94,7 @@ int OnInit()
      }
    }
 
-   if(DebugLevel >= 1) Print("Zone summary");
+   if(DebugLevel >= 2) Print("Zone summary");
    for (int ii=0; ii < ArraySize(Zones); ii++) {
       if (DebugLevel >= 3) Print("Zone ", ii, " price: ", Zones[ii]);
    }
@@ -132,14 +132,18 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 //| Expert tick function                                             |
 //+------------------------------------------------------------------+
-void OnTick() {   
+void OnTick() {
+   bool IgnoreZones = false; // set to true for debugging only
+
    ManageTrades();
    
-   for (int timeframe = MinTimeFrameIndex; timeframe <= MaxTimeFrameIndex; timeframe++) {
+   for (int ii = MinTimeFrameIndex; ii <= MaxTimeFrameIndex; ii++) {
+      int timeframe = IndexToPeriod(ii);
+      
       datetime ThisBarTime = iTime(Symbol(), timeframe, 0);
-      if (LastBarTime[timeframe] == ThisBarTime)
+      if (LastBarTime[ii] == ThisBarTime)
          continue;
-      LastBarTime[timeframe] = ThisBarTime;
+      LastBarTime[ii] = ThisBarTime;
       if (DebugLevel >= 3) Print("New candlestick on timeframe ", timeframe);
       
       // New bar on timeframe started
@@ -148,13 +152,11 @@ void OnTick() {
       // NOTE: slack is 0.0 for now, the previous bar must print exactly on the zone line!
       // TODO: determine sensible value for slack that works for DAX (e. g. 2.0) and Forex (0.00002) as well
       int ZoneTouched = PriceActionOnZone(Zones, iHigh(Symbol(), timeframe, 1), iLow(Symbol(), timeframe, 1), 0.0);
-#ifdef FIXME
-      if (ZoneTouched == -1)
+      if (! IgnoreZones && (ZoneTouched == -1))
          // price is not on a zone
          continue;
-#endif
      
-      if (DebugLevel >= 3) Print("Timeframe: ", timeframe, "; price ", iHigh(Symbol(), timeframe, 1), "/", iLow(Symbol(), timeframe, 1), " prints on zone: ", Zones[ZoneTouched]);
+      if (! IgnoreZones && (DebugLevel >= 3)) Print("Timeframe: ", timeframe, "; price ", iHigh(Symbol(), timeframe, 1), "/", iLow(Symbol(), timeframe, 1), " prints on zone: ", Zones[ZoneTouched]);
 
       // catalyst checks
       int NFXSignal = 0;
@@ -172,14 +174,14 @@ void OnTick() {
       double TradeStop      = NFXOrderPrice();
       double TradeStopLoss  = NFXOrderStoploss();
       datetime TradeExpiry    = NFXOrderExpiration();
-      double TradeVolume    = 0.1;
+      double TradeVolume    = 0.0;
       
       
       if (QualityNFXCatalyst > 0) {
-         if (DebugLevel >= 1) Print("Timeframe: ", timeframe, "; bullish signal: ", QualityNFXCatalyst, " on zone #", ZoneTouched);
+         if (DebugLevel >= 2) Print("Timeframe: ", timeframe, "; bullish signal: ", QualityNFXCatalyst, " on zone #", ZoneTouched);
 
          int NextZone = ZoneTouched + 1;
-         if (NextZone < ArraySize(Zones)) {
+         if (! IgnoreZones && (NextZone < ArraySize(Zones))) {
             TradeTakeProfit = NormRound(Zones[NextZone]);
          } else {
             Alert("No next zone defined, using a default TP of 2 * SL");
@@ -187,10 +189,10 @@ void OnTick() {
          }
 
       } else {
-         if (DebugLevel >= 1) Print("Timeframe: ", timeframe, "; bearish signal: ", QualityNFXCatalyst, " on zone #", ZoneTouched);
+         if (DebugLevel >= 2) Print("Timeframe: ", timeframe, "; bearish signal: ", QualityNFXCatalyst, " on zone #", ZoneTouched);
 
          int NextZone = ZoneTouched - 1;
-         if (NextZone >= 0) {
+         if (! IgnoreZones && (NextZone >= 0)) {
             TradeTakeProfit = NormRound(Zones[NextZone]);
          } else {
             Alert("No next zone defined, using a default TP of 2 * SL");
@@ -200,12 +202,14 @@ void OnTick() {
 
       // enable this to pause on each new candlebar. press the "Pause" key to continue.
       //PauseTest();
-            
+      
+      // calculate trade volume
+      double maxLoss = fabs(TradeStop - TradeStopLoss);
+      
+      if (DebugLevel >= 1) Print("Send trade: ", TradeOperation, ", @", TradeStop, " SL: ", TradeStopLoss, " TP: ", TradeTakeProfit);
       if (IsTradeAllowed()) {
          OrderSend(Symbol(), TradeOperation, TradeVolume, TradeStop, 0, TradeStopLoss, TradeTakeProfit, "Naked Forex", NFXSignal, TradeExpiry, clrAquamarine);      
-      } else {
-         Print("Simulated trade: ", TradeOperation, ", @", TradeStop, " SL: ", TradeStopLoss);
-      }
+      } 
    }
 }
 //+------------------------------------------------------------------+

@@ -288,7 +288,7 @@ int PriceActionOnZone(double &arg[], double price1, double price2, double slack 
    double PriceMax  = fmax(price1, price2) + slack;
    double PriceMin  = fmin(price1, price2) - slack;
 
-   int indexhigh = ArraySize(arg);
+   int indexhigh = ArraySize(arg) - 1;
    int indexlow  = 0;
   
    if (indexhigh <= 0)
@@ -296,7 +296,7 @@ int PriceActionOnZone(double &arg[], double price1, double price2, double slack 
 
    while (indexlow <= indexhigh) {
       int mid = (indexhigh + indexlow) / 2;
-    
+
       if (arg[mid] >= PriceMax) {
          indexhigh = mid - 1;
          continue;
