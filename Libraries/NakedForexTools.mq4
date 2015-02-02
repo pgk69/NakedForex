@@ -90,6 +90,12 @@ int PeriodToNFXTimeFrame(int timeframe) export {
       case PERIOD_D1:
          return NFX_TIMEFRAME_D1;
          break;
+      case PERIOD_W1:
+         return NFX_TIMEFRAME_W1;
+         break;
+      case PERIOD_MN1:
+         return NFX_TIMEFRAME_MN1;
+         break;
       default:
          return NFX_TIMEFRAME_UNDEF;
          break;

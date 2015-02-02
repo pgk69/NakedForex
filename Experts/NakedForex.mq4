@@ -53,13 +53,20 @@ void ManageTrades() {
     if (OrderSelect(ii, SELECT_BY_POS) == false)
       continue;
 
-    if (! (OrderMagicNumber() & NFX_TRADE_MAGIC))
+    if (! ((OrderMagicNumber() & NFX_TRADE_MAGIC_MASK) == NFX_TRADE_MAGIC))
       continue;
+
     // we have found an order that was opened by this EA
     
     if ((OrderType() != OP_BUY) && (OrderType() != OP_SELL))
       continue;
- 
+    // we have found an open trade
+    
+    int ThisOrderPeriod = IndexToPeriod(OrderMagicNumber() & NFX_TIMEFRAME_MASK);
+    // ThisOrderPeriod now contains the ENUM_TIMEFRAMES value of the symbol on 
+    // which the original order was opened
+
+    
     
    }    
 }

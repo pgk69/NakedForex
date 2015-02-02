@@ -29,30 +29,32 @@
 #ifndef __NakedForexTools_H__
 #define __NakedForexTools_H__
 
-#define NFX_TRADE_MAGIC              0x10000000
+#define NFX_TRADE_MAGIC_MASK         0xff000000
+#define NFX_TRADE_MAGIC              0x94000000
 
-#define NFX_SIGNAL_MASK              0x00111000
+#define NFX_SIGNAL_MASK              0x000000f0
 
-#define NFX_SIGNAL_LASTKISS          0x00000000
-#define NFX_SIGNAL_BIGSHADOW         0x00001000
-#define NFX_SIGNAL_WAMMIE            0x00010000
-#define NFX_SIGNAL_MOOLAH            0x00011000
-#define NFX_SIGNAL_KANGAROOTAIL      0x00100000
-#define NFX_SIGNAL_BIGBELT           0x00101000
-#define NFX_SIGNAL_TRENDINGKANGAROO  0x00110000
-#define NFX_SIGNAL_BEND              0x00111000
+#define NFX_SIGNAL_LASTKISS          0x00000010
+#define NFX_SIGNAL_BIGSHADOW         0x00000020
+#define NFX_SIGNAL_WAMMIE            0x00000030
+#define NFX_SIGNAL_MOOLAH            0x00000040
+#define NFX_SIGNAL_KANGAROOTAIL      0x00000050
+#define NFX_SIGNAL_BIGBELT           0x00000060
+#define NFX_SIGNAL_TRENDINGKANGAROO  0x00000070
+#define NFX_SIGNAL_BEND              0x00000080
 
 // Our EA will handle timeframes between 1 min and 1 day
-#define NFX_TIMEFRAME_MASK           0x00000111
+#define NFX_TIMEFRAME_MASK           0x0000000f
 
-#define NFX_TIMEFRAME_UNDEF          0x00000000
-#define NFX_TIMEFRAME_M1             0x00000001
-#define NFX_TIMEFRAME_M5             0x00000010
-#define NFX_TIMEFRAME_M15            0x00000011
-#define NFX_TIMEFRAME_M30            0x00000100
-#define NFX_TIMEFRAME_H1             0x00000101
-#define NFX_TIMEFRAME_H4             0x00000110
-#define NFX_TIMEFRAME_D1             0x00000111
+#define NFX_TIMEFRAME_M1             0x00000000
+#define NFX_TIMEFRAME_M5             0x00000001
+#define NFX_TIMEFRAME_M15            0x00000002
+#define NFX_TIMEFRAME_M30            0x00000003
+#define NFX_TIMEFRAME_H1             0x00000004
+#define NFX_TIMEFRAME_H4             0x00000005
+#define NFX_TIMEFRAME_D1             0x00000006
+#define NFX_TIMEFRAME_W1             0x00000007
+#define NFX_TIMEFRAME_MN1            0x00000008
 
 
 
